@@ -1,0 +1,121 @@
+clc
+clear
+format long G
+
+F = readtable("your tides data directory link")
+cf = size(F)
+F = F{:,:} % F dalam meter
+plot(F)
+
+% matriks w untuk konstanta pasut 
+
+ww = readtable("your angular velocity data directory link")
+w = ww{:,2} %w dalam radian
+
+% membuat matriks desain (A)
+% matriks A berasal dari persamaan Hi = So + ∑cos(w*t) - ∑sin(w*t)
+% menggunakan for loop
+% logika : 
+% A tersusun atas 19 kolom dengan pola yang berulang
+% kolom 1 : angka 1 (merepresentasikan nilai So pada seluruh persamaan H)
+% kolom genap : menunjukkan A : cos(w*t)
+% kolom ganjil selain 1 : menunjukkan B : -sin(w*t)
+
+n = height(F)
+u = 2*w+1
+
+for i = 1:n %t sebanyak 15 piantan (360 data)
+    A(i,1) = 1; %kolom 1 pada matriks A
+for j = 1:9 %sebanyak konstanta
+    A(i,2*j) = cos(w(j,1)*i); %cos dimulai dr kolom ke 2,4,6,...,18
+    A(i,2*j+1) = -sin(w(j,1)*i); %sin dimulai dr kolom 3,5,7,...,19
+end
+end
+
+A = A
+size(A)
+
+% hitung perataan parameter
+% menggunakan rumus pencarian matriks parameter : X = inv(A'*A)*A'*F
+
+
+X = inv(A'*A)*A'*F
+V = A*X-F
+variansi_aposteori = (V'*V)
+standar_deviasi = sqrt(variansi_aposteori)
+
+% pendefinisian parameter amplitudo tiap konstanta
+
+S0 = X(1,1)
+
+for i = 1:9;
+    Amp(i,1) = sqrt((X(2*i,1))^2+(X(2*i+1,1))^2);
+    g(i,1) = atan(X(2*i+1,1)/X(2*i,1));
+end
+
+Amplitudo = Amp %sudah urut [M2;S2;N2;K2;K1;O1;P1;M4;MS4]
+Fase = g %sudah urut [M2;S2;N2;K2;K1;O1;P1;M4;MS4]
+
+AM2 = Amplitudo(1,1)
+AS2 = Amplitudo(2,1)
+AN2 = Amplitudo(3,1)
+AK2 = Amplitudo(4,1)
+AK1 = Amplitudo(5,1)
+AO1 = Amplitudo(6,1)
+AP1 = Amplitudo(7,1)
+AM4 = Amplitudo(8,1)
+AMS4 = Amplitudo(9,1)
+
+gM2 = Fase(1,1)
+gS2 = Fase(2,1)
+gN2 = Fase(3,1)
+gK2 = Fase(4,1)
+gK1 = Fase(5,1)
+gO1 = Fase(6,1)
+gP1 = Fase(7,1)
+gM4 = Fase(8,1)
+gMS4 = Fase(9,1)
+
+% Perhitungan HHWL,MHWL,MSL,MLWL,CDL,LLWL,dan LAT
+
+HHWL = S0+(AM2+AS2+AK2+AK1+AO1+AP1);
+fprintf("didapatkan nilai HHWL (High Highest Water Level) : %.5f meter\n", HHWL)
+MHWL = S0+(AM2+AK1+AO1);
+fprintf("didapatkan nilai MHWL (Mean Highest Water Level) : %.5f meter\n", MHWL)
+MSL = S0;
+fprintf("didapatkan nilai MSL (Mean Sea Level) : %.5f meter\n", MSL)
+MLWL = S0-(AM2+AK1+AO1);
+fprintf("didapatkan nilai MLWL (Mean Lowest Water Level) : %.5f meter\n", MLWL)
+CDL = S0-(AM2+AS2+AK1+AO1);
+fprintf("didapatkan nilai CDL (Chart Datum Level) : %.5f meter\n", CDL)
+LLWL = S0-(AM2+AS2+AK2+AK1+AO1+AP1);
+fprintf("didapatkan nilai LLWL (Low Lowest Water Level) : %.5f meter\n", LLWL)
+LAT = S0-(AM2+AS2+AK2+AN2+AK1+AO1+AP1+AM4+AMS4);
+fprintf("didapatkan nilai LAT (Lowest Astronomical Tide) : %.5f meter\n\n\n", LAT)
+
+% Perhitungan nilai formzahl
+
+Formzahl = (AK1+AO1)/(AM2+AS2)
+fprintf("nilai formzahl sebesar %.7f\n\n",Formzahl)
+
+if 0<Formzahl<0.25
+    disp("data termasuk dalam pasang semi diurnal")
+    else if 0.25<Formzahl<1.5
+    disp("data termasuk dalam pasang  campuran cenderung berganda")
+    else if 1.5<Formzahl<3
+    disp("data termasuk dalam pasang campuran cenderung tunggal")
+    else Formzahl>3
+    disp("data termasuk dalam pasang diurnal murni")
+end 
+end 
+end
+
+
+Aktual = F;
+Prediksi = A*X;
+Residu = Prediksi-Aktual;
+
+Y = [Prediksi(:,1) Aktual(:,1) Residu(:,1)];
+Z = plot(Y)
+
+RMS_error = rmse(Prediksi,Aktual)
